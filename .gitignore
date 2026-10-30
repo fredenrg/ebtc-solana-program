@@ -1,0 +1,6 @@
+target/
+.anchor/
+.DS_Store
+*.json.key
+*keypair*.json
+.env*

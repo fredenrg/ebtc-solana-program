@@ -1,0 +1,21 @@
+[toolchain]
+anchor_version = "0.31.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+# `declare_id!` is compiled into the binary. The default build is mainnet 7g83…;
+# `--features devnet` builds the devnet program id instead.
+[programs.localnet]
+reward_engine = "7g83deWxasLDaUywxCGyFynTSPAZs62dJ7ir3ApmoTHc"
+
+[programs.devnet]
+reward_engine = "DQuhT2RMZGMzcmJq2e6xh8ji1bWgEFiVAo7wi87YmpR3"
+
+[programs.mainnet]
+reward_engine = "7g83deWxasLDaUywxCGyFynTSPAZs62dJ7ir3ApmoTHc"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"

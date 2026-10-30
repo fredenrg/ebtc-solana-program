@@ -1,0 +1,30 @@
+[package]
+name = "reward_engine"
+version = "0.1.0"
+description = "Solana eBTC NFT reward engine: tier-weighted draws, PDA vaults, liquidity routing"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "reward_engine"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+devnet = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+# Modern stack: Anchor 0.31.1 + Agave/Solana 2.1.
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = "0.31.1"
+# No "anchor" feature: we only use CPI builders + BaseAssetV1::from_bytes.
+mpl-core = "0.10.1"
+# NOTE: Switchboard On-Demand is consumed via a vendored zero-dependency parser in
+# `randomness::switchboard` (account layout mirrored from the `switchboard-on-demand` crate).
+# We intentionally do NOT depend on `switchboard-on-demand` directly: its non-optional
+# `switchboard-protos`/`libsecp256k1` deps pull `prost`/`getrandom 0.4` which require
+# `edition2024` and do not build on the pinned SBF toolchain (Solana 2.1 / rustc 1.79).
