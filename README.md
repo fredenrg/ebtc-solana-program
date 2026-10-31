@@ -25,13 +25,35 @@ The program's IDL is published on-chain (`anchor idl fetch 7g83deWxasLDaUywxCGyF
 - **Legacy migration** (`migrate_mint`): NFTs migrated from Stellar keep their reserved token ids,
   which public mints cannot use.
 
-## Build
+## Verified build
 
-Requires Rust (see `rust-toolchain.toml`), the Solana CLI and Anchor 0.31.1.
+The deployed program is a [verifiable build](https://solana.com/docs/programs/verified-builds),
+verified by [OtterSec](https://verify.osec.io/status/7g83deWxasLDaUywxCGyFynTSPAZs62dJ7ir3ApmoTHc).
+It is built in Docker with the Solana 2.1.0 image; other images (including the `solana-verify`
+default) produce a different binary.
 
 ```bash
-anchor build
+cargo install solana-verify
+solana-verify build --library-name reward_engine \
+  --base-image solanafoundation/solana-verifiable-build:2.1.0
+solana-verify get-executable-hash target/deploy/reward_engine.so
+solana-verify get-program-hash -um 7g83deWxasLDaUywxCGyFynTSPAZs62dJ7ir3ApmoTHc
 ```
+
+Both hashes should be `9cd9563059f376ba418fe9e6921ee004c5d83e5ccddc236d00eb9596854e255a`.
+
+To verify against this repository directly:
+
+```bash
+solana-verify verify-from-repo -um \
+  --program-id 7g83deWxasLDaUywxCGyFynTSPAZs62dJ7ir3ApmoTHc \
+  https://github.com/fredenrg/ebtc-solana-program \
+  --library-name reward_engine \
+  --base-image solanafoundation/solana-verifiable-build:2.1.0
+```
+
+For local development, `anchor build` (Rust per `rust-toolchain.toml`, Solana CLI, Anchor 0.31.1)
+also works, but its output is host-dependent and will not match the on-chain hash.
 
 ## Security
 
