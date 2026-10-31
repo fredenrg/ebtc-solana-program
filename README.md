@@ -40,7 +40,7 @@ solana-verify get-executable-hash target/deploy/reward_engine.so
 solana-verify get-program-hash -um 7g83deWxasLDaUywxCGyFynTSPAZs62dJ7ir3ApmoTHc
 ```
 
-Both hashes should be `9cd9563059f376ba418fe9e6921ee004c5d83e5ccddc236d00eb9596854e255a`.
+Both hashes should be `6bee2faf4b125d60a65387361b9b62b65e1be3c9c446f07547a083390bcd061a`.
 
 To verify against this repository directly:
 
