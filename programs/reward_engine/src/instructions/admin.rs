@@ -388,6 +388,20 @@ pub fn set_emission_start(ctx: Context<AdminConfig>, start_ts: i64) -> Result<()
     Ok(())
 }
 
+/// Extend the emission window to `end_ts`. The end can only move later, so a running schedule
+/// can be stretched but never shortened. Leaves config_version alone so an in-flight draw still
+/// settles (its reward is computed at settlement from the new end).
+pub fn set_emission_end(ctx: Context<AdminConfig>, end_ts: i64) -> Result<()> {
+    let c = &mut ctx.accounts.config;
+    require!(end_ts > c.emission_end_ts, RewardError::InvalidEmissionWindow);
+    c.emission_end_ts = end_ts;
+    emit!(ConfigChanged {
+        config_version: c.config_version,
+        field_code: 11,
+    });
+    Ok(())
+}
+
 /// Routing caps only. The pool itself is fixed by `seed_pool` and cannot be changed here.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct LiquidityConfigArgs {

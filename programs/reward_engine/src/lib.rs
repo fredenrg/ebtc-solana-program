@@ -75,6 +75,9 @@ pub mod reward_engine {
     pub fn set_emission_start(ctx: Context<AdminConfig>, start_ts: i64) -> Result<()> {
         admin::set_emission_start(ctx, start_ts)
     }
+    pub fn set_emission_end(ctx: Context<AdminConfig>, end_ts: i64) -> Result<()> {
+        admin::set_emission_end(ctx, end_ts)
+    }
     pub fn set_liquidity_mode(ctx: Context<AdminConfig>, mode: LiquidityMode) -> Result<()> {
         admin::set_liquidity_mode(ctx, mode)
     }
