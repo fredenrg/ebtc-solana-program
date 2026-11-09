@@ -60,6 +60,14 @@ pub const MAX_METADATA_PROOF_LEN: usize = 16;
 // ---- Liveness ----
 pub const STALE_DRAW_TIMEOUT_SECONDS: i64 = 3_600; // anyone may cancel a stuck pending draw after 1h
 
+// ---- Commit-reveal randomness ----
+/// A commit-reveal draw mixes in the first slot hash at or after `request_slot + this`, so the
+/// hash is unknown when the draw is requested.
+pub const COMMIT_REVEAL_TARGET_OFFSET_SLOTS: u64 = 10;
+/// SlotHashes keeps the last 512 entries; past this many slots after the target the reveal can
+/// no longer be checked and the draw may be cancelled straight away.
+pub const SLOT_HASHES_MAX_ENTRIES: u64 = 512;
+
 // ---- PDA seeds ----
 pub const SEED_CONFIG: &[u8] = b"config";
 pub const SEED_REWARD_VAULT: &[u8] = b"reward_vault";
@@ -73,3 +81,4 @@ pub const SEED_DRAW: &[u8] = b"draw";
 pub const SEED_USER: &[u8] = b"user";
 pub const SEED_CLAIM: &[u8] = b"claim";
 pub const SEED_ROUTE: &[u8] = b"route";
+pub const SEED_COMMIT_REVEAL: &[u8] = b"commit_reveal";

@@ -76,6 +76,89 @@ pub fn derive_seed(
     .to_bytes()
 }
 
+/// Hash-chain commit-reveal (`RandomnessSource::CommitReveal`).
+///
+/// The keeper keeps a secret root and the chain `s_n = root`, `s_{i-1} = H(tag || s_i)`; only
+/// the far end `s_0` is published as the initial head. Each reveal must satisfy
+/// `H(tag || secret) == head` and becomes the new head, so the order of secrets is fixed when
+/// the chain is created. The draw value mixes the secret with a slot hash that did not exist
+/// when the draw was requested: the keeper cannot steer it (secret already fixed) and nobody
+/// else can predict it (secret unknown).
+pub mod commit_reveal {
+    use super::*;
+
+    pub const CHAIN_TAG: &[u8] = b"ebtc-cr-chain-v1";
+
+    pub fn chain_hash(secret: &[u8; 32]) -> [u8; 32] {
+        hashv(&[CHAIN_TAG, secret]).to_bytes()
+    }
+
+    /// The first (earliest) SlotHashes entry at or after `target`. Skipped slots have no
+    /// entry, so this is the first block produced from `target` on. Errors with
+    /// `RandomnessNotReady` before that block exists, and `RandomnessTargetExpired` once the
+    /// sysvar no longer reaches back past `target` (the earliest such entry can't be proven).
+    pub fn target_slot_hash(slot_hashes_acc: &AccountInfo, target: u64) -> Result<(u64, [u8; 32])> {
+        require_keys_eq!(*slot_hashes_acc.key, slot_hashes::ID, RewardError::AccountMismatch);
+        let data = slot_hashes_acc.try_borrow_data()?;
+        require!(data.len() >= 8, RewardError::RandomnessNotReady);
+        let n = u64::from_le_bytes(data[0..8].try_into().unwrap()) as usize;
+        let mut found: Option<(u64, [u8; 32])> = None;
+        let mut reaches_below_target = false;
+        for i in 0..n {
+            let off = 8 + i * 40;
+            if data.len() < off + 40 {
+                break;
+            }
+            let slot = u64::from_le_bytes(data[off..off + 8].try_into().unwrap());
+            if slot < target {
+                reaches_below_target = true;
+                break;
+            }
+            let mut hash = [0u8; 32];
+            hash.copy_from_slice(&data[off + 8..off + 40]);
+            found = Some((slot, hash)); // entries are newest-first; keep the oldest >= target
+        }
+        let found = found.ok_or(RewardError::RandomnessNotReady)?;
+        require!(reaches_below_target, RewardError::RandomnessTargetExpired);
+        Ok(found)
+    }
+
+    pub fn draw_randomness(secret: &[u8; 32], target_hash: &[u8; 32], draw_id: u64, request_slot: u64) -> [u8; 32] {
+        hashv(&[
+            b"ebtc-rand-cr-v1",
+            secret,
+            target_hash,
+            &draw_id.to_le_bytes(),
+            &request_slot.to_le_bytes(),
+        ])
+        .to_bytes()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn chain_links_back_to_the_head() {
+            let s2 = [9u8; 32];
+            let s1 = chain_hash(&s2);
+            let head = chain_hash(&s1);
+            assert_eq!(chain_hash(&s1), head);
+            assert_eq!(chain_hash(&s2), s1);
+            assert_ne!(chain_hash(&s2), head);
+        }
+
+        #[test]
+        fn draw_value_depends_on_every_input() {
+            let base = draw_randomness(&[1; 32], &[2; 32], 7, 100);
+            assert_ne!(base, draw_randomness(&[3; 32], &[2; 32], 7, 100));
+            assert_ne!(base, draw_randomness(&[1; 32], &[3; 32], 7, 100));
+            assert_ne!(base, draw_randomness(&[1; 32], &[2; 32], 8, 100));
+            assert_ne!(base, draw_randomness(&[1; 32], &[2; 32], 7, 101));
+        }
+    }
+}
+
 /// Switchboard On-Demand provider (commit→reveal), consumed on-chain.
 ///
 /// We parse the Switchboard `RandomnessAccountData` directly from account bytes instead of

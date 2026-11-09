@@ -128,4 +128,8 @@ pub enum RewardError {
     InvalidMetadataUri,
     #[msg("Metadata name must not be empty")]
     InvalidMetadataName,
+    #[msg("Revealed secret does not match the committed hash-chain head")]
+    InvalidReveal,
+    #[msg("The commit-reveal target slot hash is no longer available")]
+    RandomnessTargetExpired,
 }

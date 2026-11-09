@@ -46,6 +46,20 @@ pub enum RandomnessSource {
     /// Production: MagicBlock VRF. `commit_draw_magicblock` queues a request by CPI; the
     /// MagicBlock program verifies the oracle's proof and calls `magicblock_callback`.
     MagicBlock,
+    /// Hash-chain commit-reveal: the keeper reveals the preimage of `CommitRevealState::head`,
+    /// mixed with the first slot hash at/after `request_slot + COMMIT_REVEAL_TARGET_OFFSET_SLOTS`.
+    CommitReveal,
+}
+
+/// Head of the keeper's pre-committed hash chain (`head = H(tag || next_secret)`). Each reveal
+/// must hash to the current head and then becomes the new head, so secrets are fixed in order
+/// long before the slot hashes they are mixed with exist.
+#[account]
+#[derive(InitSpace)]
+pub struct CommitRevealState {
+    pub head: [u8; 32],
+    pub reveals: u64,
+    pub bump: u8,
 }
 
 /// Two-phase randomness lifecycle for a draw. Settlement requires `Fulfilled`.

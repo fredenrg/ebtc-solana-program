@@ -5,7 +5,7 @@ use crate::errors::RewardError;
 use crate::events::*;
 use crate::math::compute_reward;
 use crate::mpl::{assert_in_collection, read_asset_owner, verify_asset};
-use crate::randomness::{derive_seed, recent_slot_hash, slot_hash_randomness};
+use crate::randomness::{commit_reveal, derive_seed, recent_slot_hash, slot_hash_randomness};
 use crate::selection::{
     index_to_page_slot, random_in_range, select_winner, total_weight, BonusEntry, Selection,
     TierWeight,
@@ -422,6 +422,74 @@ pub fn fulfill_draw_vrf(ctx: Context<FulfillDrawVrf>, randomness: [u8; 32]) -> R
         draw_id: d.draw_id,
         source_code: 1,
         slot: clock.slot,
+    });
+    Ok(())
+}
+
+// ---------------- fulfill_draw_commit_reveal (hash-chain commit-reveal) ----------------
+
+/// Reveal the next hash-chain secret for a pending commit-reveal draw. Permissionless: only
+/// the holder of the chain can produce a matching preimage.
+#[derive(Accounts)]
+pub struct FulfillDrawCommitReveal<'info> {
+    pub caller: Signer<'info>,
+
+    #[account(seeds = [SEED_CONFIG], bump = config.bump, constraint = !config.paused @ RewardError::Paused)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds = [SEED_COMMIT_REVEAL], bump = commit_reveal.bump)]
+    pub commit_reveal: Account<'info, CommitRevealState>,
+
+    #[account(
+        mut,
+        seeds = [SEED_DRAW, &draw_state.draw_id.to_le_bytes()],
+        bump = draw_state.bump,
+        constraint = draw_state.status == DrawStatus::Pending @ RewardError::DrawNotPending,
+    )]
+    pub draw_state: Account<'info, DrawState>,
+
+    /// CHECK: address-constrained to the SlotHashes sysvar.
+    #[account(address = slot_hashes::ID)]
+    pub slot_hashes: UncheckedAccount<'info>,
+}
+
+pub fn fulfill_draw_commit_reveal(ctx: Context<FulfillDrawCommitReveal>, secret: [u8; 32]) -> Result<()> {
+    let d = &ctx.accounts.draw_state;
+    require!(
+        d.randomness_source == RandomnessSource::CommitReveal,
+        RewardError::RandomnessModeMismatch
+    );
+    require!(
+        d.randomness_status == RandomnessStatus::Pending,
+        RewardError::RandomnessAlreadyFulfilled
+    );
+    require!(
+        d.config_version == ctx.accounts.config.config_version,
+        RewardError::ConfigVersionMismatch
+    );
+    require!(
+        commit_reveal::chain_hash(&secret) == ctx.accounts.commit_reveal.head,
+        RewardError::InvalidReveal
+    );
+
+    let target = d.request_slot + COMMIT_REVEAL_TARGET_OFFSET_SLOTS;
+    let (target_slot, target_hash) =
+        commit_reveal::target_slot_hash(&ctx.accounts.slot_hashes.to_account_info(), target)?;
+    let value = commit_reveal::draw_randomness(&secret, &target_hash, d.draw_id, d.request_slot);
+
+    let cr = &mut ctx.accounts.commit_reveal;
+    cr.head = secret;
+    cr.reveals += 1;
+
+    let d = &mut ctx.accounts.draw_state;
+    d.randomness = value;
+    d.randomness_slot = target_slot;
+    d.randomness_status = RandomnessStatus::Fulfilled;
+
+    emit!(RandomnessFulfilled {
+        draw_id: d.draw_id,
+        source_code: 5,
+        slot: target_slot,
     });
     Ok(())
 }
@@ -1116,13 +1184,26 @@ pub fn cancel_stale_draw(ctx: Context<CancelStaleDraw>) -> Result<()> {
     let version_changed =
         ctx.accounts.draw_state.config_version != ctx.accounts.config.config_version;
     let timed_out = now >= ctx.accounts.draw_state.request_ts + STALE_DRAW_TIMEOUT_SECONDS;
+    let d = &ctx.accounts.draw_state;
+    let reveal_expired = d.randomness_source == RandomnessSource::CommitReveal
+        && d.randomness_status == RandomnessStatus::Pending
+        && Clock::get()?.slot
+            > d.request_slot + COMMIT_REVEAL_TARGET_OFFSET_SLOTS + SLOT_HASHES_MAX_ENTRIES;
 
     require!(
-        is_admin || version_changed || timed_out,
+        is_admin || version_changed || timed_out || reveal_expired,
         RewardError::StaleTimeoutNotElapsed
     );
 
-    let reason_code: u16 = if version_changed { 1 } else if timed_out { 2 } else { 0 };
+    let reason_code: u16 = if version_changed {
+        1
+    } else if timed_out {
+        2
+    } else if reveal_expired {
+        3
+    } else {
+        0
+    };
     ctx.accounts.draw_state.status = DrawStatus::Cancelled;
     ctx.accounts.config.pending_draw_id = None;
 

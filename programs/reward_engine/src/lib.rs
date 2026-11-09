@@ -78,6 +78,9 @@ pub mod reward_engine {
     pub fn set_emission_end(ctx: Context<AdminConfig>, end_ts: i64) -> Result<()> {
         admin::set_emission_end(ctx, end_ts)
     }
+    pub fn set_commit_reveal_head(ctx: Context<SetCommitRevealHead>, head: [u8; 32]) -> Result<()> {
+        admin::set_commit_reveal_head(ctx, head)
+    }
     pub fn set_liquidity_mode(ctx: Context<AdminConfig>, mode: LiquidityMode) -> Result<()> {
         admin::set_liquidity_mode(ctx, mode)
     }
@@ -152,6 +155,9 @@ pub mod reward_engine {
     }
     pub fn fulfill_draw_vrf(ctx: Context<FulfillDrawVrf>, randomness: [u8; 32]) -> Result<()> {
         draw::fulfill_draw_vrf(ctx, randomness)
+    }
+    pub fn fulfill_draw_commit_reveal(ctx: Context<FulfillDrawCommitReveal>, secret: [u8; 32]) -> Result<()> {
+        draw::fulfill_draw_commit_reveal(ctx, secret)
     }
     pub fn commit_draw_switchboard(ctx: Context<CommitDrawSwitchboard>) -> Result<()> {
         draw::commit_draw_switchboard(ctx)

@@ -391,6 +391,37 @@ pub fn set_emission_start(ctx: Context<AdminConfig>, start_ts: i64) -> Result<()
 /// Extend the emission window to `end_ts`. The end can only move later, so a running schedule
 /// can be stretched but never shortened. Leaves config_version alone so an in-flight draw still
 /// settles (its reward is computed at settlement from the new end).
+#[derive(Accounts)]
+pub struct SetCommitRevealHead<'info> {
+    #[account(mut, address = config.admin @ RewardError::Unauthorized)]
+    pub admin: Signer<'info>,
+    #[account(seeds = [SEED_CONFIG], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    #[account(
+        init_if_needed,
+        payer = admin,
+        space = 8 + CommitRevealState::INIT_SPACE,
+        seeds = [SEED_COMMIT_REVEAL],
+        bump,
+    )]
+    pub commit_reveal: Account<'info, CommitRevealState>,
+    pub system_program: Program<'info, System>,
+}
+
+/// Publish the head of a fresh hash chain. Refused while a draw is pending, so a head can
+/// never be swapped after that draw's target slot hash is known.
+pub fn set_commit_reveal_head(ctx: Context<SetCommitRevealHead>, head: [u8; 32]) -> Result<()> {
+    require!(ctx.accounts.config.pending_draw_id.is_none(), RewardError::PendingDrawExists);
+    let cr = &mut ctx.accounts.commit_reveal;
+    cr.head = head;
+    cr.bump = ctx.bumps.commit_reveal;
+    emit!(ConfigChanged {
+        config_version: ctx.accounts.config.config_version,
+        field_code: 12,
+    });
+    Ok(())
+}
+
 pub fn set_emission_end(ctx: Context<AdminConfig>, end_ts: i64) -> Result<()> {
     let c = &mut ctx.accounts.config;
     require!(end_ts > c.emission_end_ts, RewardError::InvalidEmissionWindow);
